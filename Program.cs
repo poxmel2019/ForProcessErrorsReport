@@ -10,7 +10,11 @@ namespace ForProcessErrors
         {
             Workbook workbook = new Workbook();
             Worksheet worksheet = workbook.Worksheets[0];
+            worksheet.Name = "Report";
 
+            Worksheet worksheet2 = workbook.Worksheets[1];
+            worksheet2.Name = "ResultCodes";
+                
             string connectionString = "Server=hbmssqltest.halykbank.nb;" +
                 "Database=CorePayments;" +
                 "User ID=CorePayments;" +
@@ -121,7 +125,18 @@ namespace ForProcessErrors
                 "where StartDate between\r\n" +
                 "cast('2024-04-01' as date) \r\n" +
                 "and \r\ncast('2024-05-01' as date)\r\n" +
-                "and LastPortalServiceOperationStateId = 38";
+                "and LastPortalServiceOperationStateId = 38;";
+
+            // 15
+            string resultCodes = "select \r\nResultCode, " +                //81
+                "count(resultcode) co\r\n" +
+                "from ProcessOperations (nolock)\r\n" +
+                "where StartDate between\r\n" +
+                "cast('2024-04-01' as date) \r\n" +
+                "and \r\ncast('2024-05-01' as date)\r\n" +
+                "and ResultCode < 0\r\ngroup by ResultCode\r\n" +
+                "order by ResultCode desc";
+
 
             string[] sqlExpressions =
             {
@@ -200,7 +215,7 @@ namespace ForProcessErrors
                     await reader.CloseAsync();
                 }
 
-                Console.WriteLine("Finished");
+                Console.WriteLine("Query finished");
 
                 // first string styling
                 CellStyle style = workbook.Styles.Add("newStyle");
@@ -210,8 +225,36 @@ namespace ForProcessErrors
                     worksheet.Range[i, 1, i, 1].Style = style;
                 }
 
+
+                SqlCommand command2 = new SqlCommand(resultCodes, connection);
+                SqlDataReader reader2 = await command2.ExecuteReaderAsync();
+
+                worksheet2.Range[1, 1].Value = "Код";
+                worksheet2.Range[1, 2].Value = "Количество";
+
+                int k = 2;
+                while (await reader2.ReadAsync())
+                {
+                    object resultCode = reader2.GetValue(0);
+                    object quantity = reader2.GetValue(1);
+
+                    worksheet2.Range[k, 1].Value = resultCode.ToString();
+                    worksheet2.Range[k, 2].Value = quantity.ToString();
+                    k++;
+                }
+
+                Console.WriteLine("Result code finished");
+
+                worksheet2.Range[1, 1, 1, 2].Style = style;
+
+                await reader2.CloseAsync();
+
+
+
                 // fit width of columns
                 worksheet.AllocatedRange.AutoFitColumns();
+
+                Console.WriteLine("Excel file finished");
 
                 // save to excel file
                 workbook.SaveToFile("C:\\for_work\\code\\my_projects\\ForExcel\\ReportError.xlsx",ExcelVersion.Version2016);
